@@ -12,7 +12,7 @@
 import os
 import torch
 from random import randint
-from utils.loss_utils import l1_loss, ssim
+from utils.loss_utils import l1_loss, ssim, SmoothLoss
 from gaussian_renderer import render, network_gui
 import sys
 from scene import Scene, GaussianModel
@@ -22,6 +22,8 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+from utils.graphics_utils import inverse_warp_images
+
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -67,6 +69,15 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     viewpoint_indices = list(range(len(viewpoint_stack)))
     ema_loss_for_log = 0.0
     ema_Ll1depth_for_log = 0.0
+
+    # Create tensors for binocular consistency
+    image_height = viewpoint_stack[0].image_height
+    image_width = viewpoint_stack[0].image_width
+    row_indices = torch.arange(0, image_height).view(-1, 1).repeat(1, image_width).cuda()
+    column_indices = torch.arange(0, image_width).repeat(image_height, 1).cuda()
+    mask = torch.ones((1, image_height, image_width), dtype=torch.float32).cuda()
+
+    smooth_loss = SmoothLoss()
 
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
@@ -139,6 +150,25 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         else:
             Ll1depth = 0
 
+        # Dispiarity regularization
+        if args.binocular_consistency and iteration > args.shift_cam_start:
+            trans_dist = torch.rand(1) * args.cam_trans_dist
+            trans_dist = (trans_dist * (1.0 if viewpoint_cam.colmap_id == 1 else -1.0)).item()
+            disparity = viewpoint_cam.disp
+            shifted_cam = scene.getShiftedCamera(viewpoint_cam, trans_dist)
+            render_pkg = render(shifted_cam, gaussians, pipe, bg)
+            shifted_image = render_pkg["render"]
+            warped_image = inverse_warp_images(shifted_image.unsqueeze(0), disparity.unsqueeze(0), row_indices, column_indices)
+            shift_mask = inverse_warp_images(mask.unsqueeze(0), disparity.unsqueeze(0), row_indices, column_indices)
+
+            disparity_loss = (l1_loss(warped_image, gt_image.unsqueeze(0), mask=shift_mask) +
+                              0.05 * smooth_loss.forward(disparity=disparity*shift_mask, image=gt_image.unsqueeze(0)))
+            loss += disparity_loss
+            disparity_loss = disparity_loss.item()
+        else:
+            Ll1depth = 0
+
+
         loss.backward()
 
         iter_end.record()
@@ -149,7 +179,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_Ll1depth_for_log = 0.4 * Ll1depth + 0.6 * ema_Ll1depth_for_log
 
             if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}", "Depth Loss": f"{ema_Ll1depth_for_log:.{7}f}"})
+                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}", 
+                                          "Depth Loss": f"{ema_Ll1depth_for_log:.{7}f}",
+                                          "disp_loss": f"{disparity_loss:.6f}"})
                 progress_bar.update(10)
             if iteration == opt.iterations:
                 progress_bar.close()
@@ -265,6 +297,9 @@ if __name__ == "__main__":
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument('--disable_viewer', action='store_true', default=False)
+    parser.add_argument("--binocular_consistency", action="store_true", default=True)
+    parser.add_argument("--shift_cam_start", type=int, default=20000)
+    parser.add_argument("--cam_trans_dist", type=float, default=0.6)
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
     args = parser.parse_args(sys.argv[1:])

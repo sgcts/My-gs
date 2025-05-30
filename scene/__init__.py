@@ -12,11 +12,13 @@
 import os
 import random
 import json
+import torch
 from utils.system_utils import searchForMaxIteration
 from scene.dataset_readers import sceneLoadTypeCallbacks
 from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
+from scene.cameras import Camera
 
 class Scene:
 
@@ -98,3 +100,24 @@ class Scene:
 
     def getTestCameras(self, scale=1.0):
         return self.test_cameras[scale]
+    
+    def getShiftedCamera(self, camera, trans_dist=0.1):
+        intrinsic, extrinsic = camera.get_camera_matrix()
+        point = torch.tensor([trans_dist, 0.0, 0.0, 1.0], device="cuda")
+        point_world = torch.inverse(extrinsic) @ point
+        point_world = point_world[:3]
+        camera_center_trans = (point_world - camera.camera_center).cpu().numpy()
+        camera = Camera(
+            colmap_id=camera.colmap_id,
+            R=camera.R,
+            T=camera.T,
+            FoVx=camera.FoVx,
+            FoVy=camera.FoVy,
+            image=torch.ones_like(camera.original_image),
+            gt_alpha_mask=None,
+            image_name=None,
+            uid=camera.uid,
+            trans=camera_center_trans,
+            data_device=camera.data_device
+        )
+        return camera
