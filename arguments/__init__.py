@@ -51,6 +51,8 @@ class ModelParams(ParamGroup):
         self._model_path = ""
         self._images = "images"
         self._depths = ""
+        # 视差参数
+        self._parallax = ""
         self._resolution = -1
         self._white_background = False
         self.train_test_exp = False

@@ -259,11 +259,12 @@ def read_extrinsics_text(path):
                 tvec = np.array(tuple(map(float, elems[5:8])))
                 camera_id = int(elems[8])
                 image_name = elems[9]
-                elems = fid.readline().split()
+                
 
                 images[image_id] = Image(
                     id=image_id, qvec=qvec, tvec=tvec,
                     camera_id=camera_id, name=image_name,
+                    xys=None, point3D_ids=None
                     )
     return images
 
