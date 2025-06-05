@@ -151,7 +151,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             Ll1depth = 0
 
         # Dispiarity regularization
-        if args.binocular_consistency and iteration > args.shift_cam_start and iteration < args.shift_cam_end:
+        if args.parallax != "" and iteration > args.shift_cam_start and iteration < args.shift_cam_end:
             trans_dist = torch.rand(1) * args.cam_trans_dist
             trans_dist = (trans_dist * (1.0 if viewpoint_cam.colmap_id == 1 else -1.0)).item()
             disparity = viewpoint_cam.disp
@@ -181,7 +181,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}", 
                                           "Depth Loss": f"{ema_Ll1depth_for_log:.{7}f}",
-                                          "disp_loss": f"{disparity_loss:.6f}"})
+                                          "Disp_Loss": f"{disparity_loss:.6f}"})
                 progress_bar.update(10)
             if iteration == opt.iterations:
                 progress_bar.close()
@@ -297,8 +297,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument('--disable_viewer', action='store_true', default=False)
-    parser.add_argument("--binocular_consistency", action="store_true", default=True)
-    parser.add_argument("--shift_cam_start", type=int, default=3000)
+    # parser.add_argument("--binocular_consistency", action="store_true", default=False)
+    parser.add_argument("--shift_cam_start", type=int, default=5000)
     parser.add_argument("--shift_cam_end", type=int, default=25000)
     parser.add_argument("--cam_trans_dist", type=float, default=0.12)
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])

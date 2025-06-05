@@ -112,6 +112,8 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_fold
 
         if disp_folder != "":
             disp_path = os.path.join(disp_folder, f"{extr.name[:-n_remove]}.png")
+        else:
+            disp_path = ""
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, depth_params=depth_params,
                               image_path=image_path, image_name=image_name, depth_path=depth_path,
@@ -200,7 +202,7 @@ def readColmapSceneInfo(path, images, depths, disp, eval, train_test_exp, llffho
         cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, depths_params=depths_params,
         images_folder=os.path.join(path, reading_dir), 
         depths_folder=os.path.join(path, depths) if depths != "" else "", 
-        disp_folder=os.path.join(path, disp), 
+        disp_folder=os.path.join(path, disp) if disp != "" else "", 
         test_cam_names_list=test_cam_names_list)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
