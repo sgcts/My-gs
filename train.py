@@ -152,17 +152,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         # Dispiarity regularization
         if args.parallax != "" and iteration > args.shift_cam_start and iteration < args.shift_cam_end:
-            trans_dist = torch.rand(1) * args.cam_trans_dist
-            trans_dist = (trans_dist * (1.0 if viewpoint_cam.colmap_id == 1 else -1.0)).item()
-            disparity = viewpoint_cam.disp
+            trans_dist = torch.tensor((args.cam_trans_dist * (-1.0 if viewpoint_cam.colmap_id == 1 else 1.0))).item()
+            disparity = viewpoint_cam.disp.cuda()
             shifted_cam = scene.getShiftedCamera(viewpoint_cam, trans_dist)
             render_pkg = render(shifted_cam, gaussians, pipe, bg)
             shifted_image = render_pkg["render"]
-            warped_image = inverse_warp_images(shifted_image.unsqueeze(0), disparity.unsqueeze(0), row_indices, column_indices)
-            shift_mask = inverse_warp_images(mask.unsqueeze(0), disparity.unsqueeze(0), row_indices, column_indices)
+            warped_image = inverse_warp_images(shifted_image.unsqueeze(0), disparity, row_indices, column_indices)
+            shift_mask = inverse_warp_images(mask.unsqueeze(0), disparity, row_indices, column_indices)
 
-            disparity_loss = (l1_loss(warped_image, gt_image.unsqueeze(0), mask=shift_mask) +
-                              0.05 * smooth_loss.forward(disparity=disparity*shift_mask, image=gt_image.unsqueeze(0)))
+            disparity_loss = (l1_loss(warped_image, gt_image.unsqueeze(0), shift_mask) +
+                              0.05 * smooth_loss.forward(disparity*shift_mask, gt_image.unsqueeze(0)))
             loss += disparity_loss
             disparity_loss = disparity_loss.item()
         else:
@@ -297,9 +296,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument('--disable_viewer', action='store_true', default=False)
-    # parser.add_argument("--binocular_consistency", action="store_true", default=False)
-    parser.add_argument("--shift_cam_start", type=int, default=5000)
-    parser.add_argument("--shift_cam_end", type=int, default=25000)
+    parser.add_argument("--shift_cam_start", type=int, default=8000)
+    parser.add_argument("--shift_cam_end", type=int, default=20000)
     parser.add_argument("--cam_trans_dist", type=float, default=0.12)
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)

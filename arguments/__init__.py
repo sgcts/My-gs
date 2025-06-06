@@ -53,7 +53,7 @@ class ModelParams(ParamGroup):
         self._depths = ""
         # 视差参数
         self._parallax = ""
-        self._resolution = -1
+        self._resolution = 1 # 不缩放
         self._white_background = False
         self.train_test_exp = False
         self.data_device = "cuda"

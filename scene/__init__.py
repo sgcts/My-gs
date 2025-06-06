@@ -14,19 +14,20 @@ import random
 import json
 import torch
 import copy
+import numpy as np
 from utils.system_utils import searchForMaxIteration
 from scene.dataset_readers import sceneLoadTypeCallbacks
 from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
 from scene.cameras import Camera
-from utils.graphics_utils import getWorld2View2
+from utils.graphics_utils import getWorld2View
 
 class Scene:
 
     gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
+    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1]):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -103,14 +104,11 @@ class Scene:
     def getTestCameras(self, scale=1.0):
         return self.test_cameras[scale]
     
-    def getShiftedCamera(self, camera_origin, trans_dist=0.1):
+    def getShiftedCamera(self, camera_origin, trans_dist):
         camera = copy.copy(camera_origin)
-        intrinsic, extrinsic = camera.get_camera_matrix()
-        point = torch.tensor([trans_dist, 0.0, 0.0, 1.0], device="cuda")
-        point_world = torch.inverse(extrinsic) @ point
-        point_world = point_world[:3]
-        camera_center_trans = (point_world - camera.camera_center).cpu().numpy()
-        camera.trans = camera_center_trans
-        camera.world_view_transform = torch.tensor(getWorld2View2(camera.R, camera.T, camera_center_trans, camera.scale)).transpose(0, 1).cuda() 
+        camera.T[0] = camera.T[0] + trans_dist
+        camera.world_view_transform = torch.tensor(getWorld2View(camera.R, camera.T)).transpose(0, 1).cuda() 
+        camera.full_proj_transform = (camera.world_view_transform.unsqueeze(0).bmm(camera.projection_matrix.unsqueeze(0))).squeeze(0)
+        camera.camera_center = camera.world_view_transform[3, :3]
         
         return camera

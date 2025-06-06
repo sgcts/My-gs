@@ -12,7 +12,7 @@
 import torch
 from torch import nn
 import numpy as np
-from utils.graphics_utils import getWorld2View2, getProjectionMatrix, fov2focal
+from utils.graphics_utils import getWorld2View, getProjectionMatrix, fov2focal
 from utils.general_utils import PILtoTorch
 import cv2
 
@@ -86,8 +86,8 @@ class Camera(nn.Module):
 
         self.disp = None
         if disp is not None:
-            self.disp = cv2.resize(disp, resolution)
-            self.disp = torch.from_numpy(self.disp[None]).to(self.data_device)
+            self.disp = disp
+            self.disp = torch.from_numpy(self.disp).to(self.data_device)
 
         self.zfar = 100.0
         self.znear = 0.01
@@ -95,23 +95,12 @@ class Camera(nn.Module):
         self.trans = trans
         self.scale = scale
 
-        self.world_view_transform = torch.tensor(getWorld2View2(R, T, trans, scale)).transpose(0, 1).cuda()
+        self.world_view_transform = torch.tensor(getWorld2View(R, T)).transpose(0, 1).cuda()
         self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0,1).cuda()
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
-        self.camera_center = self.world_view_transform.inverse()[3, :3]
+        # self.camera_center = self.world_view_transform.inverse()[3, :3]
+        self.camera_center = self.world_view_transform[3, :3]
 
-    def get_camera_matrix(self):
-        focal_x = fov2focal(self.FoVx, self.image_width)  # original focal length
-        focal_y = fov2focal(self.FoVy, self.image_height)
-        intrinsic_matrix = torch.tensor([[focal_x, 0, self.image_width / 2], [0, focal_y, self.image_height / 2], [0, 0, 1]]).float()
-        extrinsic_matrix = self.world_view_transform.transpose(0,1).contiguous() # world2cam
-        return intrinsic_matrix.cuda(), extrinsic_matrix.cuda()
-    
-    def get_focal(self):
-        focal_x = fov2focal(self.FoVx, self.image_width)
-        focal_y = fov2focal(self.FoVy, self.image_height)
-        return focal_x, focal_y
-    
         
 class MiniCam:
     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):

@@ -111,7 +111,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_fold
         depth_path = os.path.join(depths_folder, f"{extr.name[:-n_remove]}.png") if depths_folder != "" else ""
 
         if disp_folder != "":
-            disp_path = os.path.join(disp_folder, f"{extr.name[:-n_remove]}.png")
+            disp_path = os.path.join(disp_folder, f"{extr.name[:-n_remove]}.npy")
         else:
             disp_path = ""
 

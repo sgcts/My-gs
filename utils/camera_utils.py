@@ -62,7 +62,7 @@ def loadCam(args, id, cam_info, resolution_scale, is_nerf_synthetic, is_test_dat
 
     if cam_info.disp_path != "":
         try:
-            disp = cv2.imread(cam_info.disp_path, -1).astype(np.float32) / 256
+            disp = np.load(cam_info.disp_path)
         except FileNotFoundError:
             print(f"Error: The disparity file at path '{cam_info.disp_path}' was not found.")
             raise
